@@ -6,6 +6,11 @@
         <RootNamespace>Blockgame_VulkanTests</RootNamespace>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="OpenTK" Version="5.0.0-pre.13" />
+    </ItemGroup>
 
 </Project>
