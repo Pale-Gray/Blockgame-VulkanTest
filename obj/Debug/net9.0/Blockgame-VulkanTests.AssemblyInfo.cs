@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Blockgame-VulkanTests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ac0508313754690eb3ac97b2198ae15d2e9c2685")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9bd2bcd3b5f072282e1375df797fd6b096fb0d01")]
 [assembly: System.Reflection.AssemblyProductAttribute("Blockgame-VulkanTests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Blockgame-VulkanTests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

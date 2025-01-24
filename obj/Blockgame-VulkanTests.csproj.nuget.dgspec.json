@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/home/pale/RiderProjects/Blockgame-VulkanTests/Blockgame-VulkanTests.csproj": {}
+    "/home/pale/RiderProjects/Blockgame-VulkanTest/Blockgame-VulkanTests.csproj": {}
   },
   "projects": {
-    "/home/pale/RiderProjects/Blockgame-VulkanTests/Blockgame-VulkanTests.csproj": {
+    "/home/pale/RiderProjects/Blockgame-VulkanTest/Blockgame-VulkanTests.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/pale/RiderProjects/Blockgame-VulkanTests/Blockgame-VulkanTests.csproj",
+        "projectUniqueName": "/home/pale/RiderProjects/Blockgame-VulkanTest/Blockgame-VulkanTests.csproj",
         "projectName": "Blockgame-VulkanTests",
-        "projectPath": "/home/pale/RiderProjects/Blockgame-VulkanTests/Blockgame-VulkanTests.csproj",
+        "projectPath": "/home/pale/RiderProjects/Blockgame-VulkanTest/Blockgame-VulkanTests.csproj",
         "packagesPath": "/home/pale/.nuget/packages/",
-        "outputPath": "/home/pale/RiderProjects/Blockgame-VulkanTests/obj/",
+        "outputPath": "/home/pale/RiderProjects/Blockgame-VulkanTest/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/home/pale/.nuget/NuGet/NuGet.Config"
@@ -36,7 +36,7 @@
         "restoreAuditProperties": {
           "enableAudit": "true",
           "auditLevel": "low",
-          "auditMode": "direct"
+          "auditMode": "all"
         },
         "SdkAnalysisLevel": "9.0.100"
       },
@@ -47,6 +47,10 @@
             "OpenTK": {
               "target": "Package",
               "version": "[5.0.0-pre.13, )"
+            },
+            "StbImageSharp": {
+              "target": "Package",
+              "version": "[2.30.15, )"
             }
           },
           "imports": [
@@ -65,7 +69,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/9.0.102/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/home/pale/.dotnet/sdk/9.0.100/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

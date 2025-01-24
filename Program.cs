@@ -57,7 +57,11 @@ class Program
         Toolkit.Window.SetSize(window, (800, 600));
         Toolkit.Window.SetMode(window, WindowMode.Normal);
 
-        EventQueue.EventRaised += EventRaised; 
+        ReadOnlySpan<byte> iconData = [255, 255, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255, 255];
+        IconHandle icon = Toolkit.Icon.Create(2, 2, iconData);
+        Toolkit.Window.SetIcon(window, icon);
+
+        EventQueue.EventRaised += EventRaised;
         
         // Setup for creating an instance.
         // TODO: potentially offload this to a method.
@@ -669,6 +673,33 @@ class Program
         {
 
             Toolkit.Window.ProcessEvents(false);
+            if (Toolkit.Window.IsWindowDestroyed(window))
+            {
+                Vk.DeviceWaitIdle(device);
+                foreach (VkFramebuffer framebuffer in swapchainFramebuffers)
+                {
+                    Vk.DestroyFramebuffer(device, framebuffer, null);    
+                }
+                foreach (VkImageView imageView in swapchainImageViews)
+                {
+                    Vk.DestroyImageView(device, imageView, null);
+                }
+                Vk.DestroySwapchainKHR(device, swapchain, null);
+                Vk.DestroySurfaceKHR(instance, surface, null);    
+                Vk.DestroyInstance(instance, null);
+                Vk.DestroyShaderModule(device, vertexShaderModule, null);
+                Vk.DestroyShaderModule(device, fragmentShaderModule, null);
+                Vk.DestroyPipeline(device, graphicsPipeline, null);
+                Vk.DestroyPipelineLayout(device, pipelineLayout, null);
+                Vk.DestroyRenderPass(device, renderPass, null);
+                Vk.DestroyCommandPool(device, commandPool, null);
+                Vk.DestroySemaphore(device, imageAvailableSemaphore, null);
+                Vk.DestroySemaphore(device, renderFinishedSemaphore, null);
+                Vk.DestroyFence(device, inFlightFence, null);
+                Vk.DestroyDevice(device, null);
+                break;
+
+            }
             
             Vk.WaitForFences(device, 1, &inFlightFence, 1, ulong.MaxValue);
             Vk.ResetFences(device, 1, &inFlightFence);
@@ -710,7 +741,7 @@ class Program
             Vk.CmdSetViewport(commandBuffer, 0, 1, &viewport);
             Vk.CmdSetScissor(commandBuffer, 0, 1, &scissorRect);
             
-            Vk.CmdDraw(commandBuffer, 3, 1, 0, 0);
+            Vk.CmdDraw(commandBuffer, 6, 1, 0, 0);
             
             Vk.CmdEndRenderPass(commandBuffer);
             result = Vk.EndCommandBuffer(commandBuffer);
@@ -745,36 +776,9 @@ class Program
             presentInfo.pResults = null;
             Vk.QueuePresentKHR(presentQueue, &presentInfo);
             
-            if (Toolkit.Window.IsWindowDestroyed(window))
-            {
-                
-                foreach (VkFramebuffer framebuffer in swapchainFramebuffers)
-                {
-                    Vk.DestroyFramebuffer(device, framebuffer, null);    
-                }
-                Vk.DestroySurfaceKHR(instance, surface, null);    
-                Vk.DestroyInstance(instance, null);
-                Vk.DestroySwapchainKHR(device, swapchain, null);
-                foreach (VkImageView imageView in swapchainImageViews)
-                {
-                    Vk.DestroyImageView(device, imageView, null);
-                }
-                Vk.DestroyShaderModule(device, vertexShaderModule, null);
-                Vk.DestroyShaderModule(device, fragmentShaderModule, null);
-                Vk.DestroyPipeline(device, graphicsPipeline, null);
-                Vk.DestroyPipelineLayout(device, pipelineLayout, null);
-                Vk.DestroyRenderPass(device, renderPass, null);
-                Vk.DestroyCommandPool(device, commandPool, null);
-                Vk.DestroySemaphore(device, imageAvailableSemaphore, null);
-                Vk.DestroySemaphore(device, renderFinishedSemaphore, null);
-                Vk.DestroyFence(device, inFlightFence, null);
-                Vk.DestroyDevice(device, null);
-                break;
-
-            }
-            
         }
 
+        // Console.WriteLine("I should exit");
         Vk.DeviceWaitIdle(device);
 
     }
