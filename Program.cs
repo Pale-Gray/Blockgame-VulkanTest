@@ -14,6 +14,9 @@ namespace Blockgame_VulkanTests;
 
 class Program
 {
+
+    public static bool IsRunning = true;
+    
     static unsafe void Main(string[] args)
     {
         
@@ -669,40 +672,19 @@ class Program
         // Vk.CmdEndRenderPass(commandBuffer);
         */
         
-        while (true)
+        while (IsRunning)
         {
 
             Toolkit.Window.ProcessEvents(false);
-            if (Toolkit.Window.IsWindowDestroyed(window))
+            Vk.WaitForFences(device, 1, &inFlightFence, 1, ulong.MaxValue);
+            Vk.ResetFences(device, 1, &inFlightFence);
+            
+            if (!IsRunning)
             {
-                Vk.DeviceWaitIdle(device);
-                foreach (VkFramebuffer framebuffer in swapchainFramebuffers)
-                {
-                    Vk.DestroyFramebuffer(device, framebuffer, null);    
-                }
-                foreach (VkImageView imageView in swapchainImageViews)
-                {
-                    Vk.DestroyImageView(device, imageView, null);
-                }
-                Vk.DestroySwapchainKHR(device, swapchain, null);
-                Vk.DestroySurfaceKHR(instance, surface, null);    
-                Vk.DestroyInstance(instance, null);
-                Vk.DestroyShaderModule(device, vertexShaderModule, null);
-                Vk.DestroyShaderModule(device, fragmentShaderModule, null);
-                Vk.DestroyPipeline(device, graphicsPipeline, null);
-                Vk.DestroyPipelineLayout(device, pipelineLayout, null);
-                Vk.DestroyRenderPass(device, renderPass, null);
-                Vk.DestroyCommandPool(device, commandPool, null);
-                Vk.DestroySemaphore(device, imageAvailableSemaphore, null);
-                Vk.DestroySemaphore(device, renderFinishedSemaphore, null);
-                Vk.DestroyFence(device, inFlightFence, null);
-                Vk.DestroyDevice(device, null);
+                
                 break;
 
             }
-            
-            Vk.WaitForFences(device, 1, &inFlightFence, 1, ulong.MaxValue);
-            Vk.ResetFences(device, 1, &inFlightFence);
             
             uint imageIndex;
             result = Vk.AcquireNextImageKHR(device, swapchain, ulong.MaxValue, imageAvailableSemaphore, VkFence.Zero, &imageIndex);
@@ -777,9 +759,36 @@ class Program
             Vk.QueuePresentKHR(presentQueue, &presentInfo);
             
         }
-
-        // Console.WriteLine("I should exit");
+        
+        Console.WriteLine("Stopped running.");
+                
+        Vk.WaitForFences(device, 1, &inFlightFence, 1, ulong.MaxValue);
+        Vk.ResetFences(device, 1, &inFlightFence);
         Vk.DeviceWaitIdle(device);
+                
+        foreach (VkFramebuffer framebuffer in swapchainFramebuffers)
+        {
+            Vk.DestroyFramebuffer(device, framebuffer, null);    
+        }
+        foreach (VkImageView imageView in swapchainImageViews)
+        {
+            Vk.DestroyImageView(device, imageView, null);
+        }
+        Vk.DestroySwapchainKHR(device, swapchain, null);
+        Vk.DestroySurfaceKHR(instance, surface, null);    
+        Vk.DestroyInstance(instance, null);
+        Vk.DestroyShaderModule(device, vertexShaderModule, null);
+        Vk.DestroyShaderModule(device, fragmentShaderModule, null);
+        Vk.DestroyPipeline(device, graphicsPipeline, null);
+        Vk.DestroyPipelineLayout(device, pipelineLayout, null);
+        Vk.DestroyRenderPass(device, renderPass, null);
+        Vk.DestroyCommandPool(device, commandPool, null);
+        Vk.DestroySemaphore(device, imageAvailableSemaphore, null);
+        Vk.DestroySemaphore(device, renderFinishedSemaphore, null);
+        Vk.DestroyFence(device, inFlightFence, null);
+        Vk.DestroyDevice(device, null);
+        
+        Toolkit.Window.Destroy(window);
 
     }
 
@@ -790,7 +799,8 @@ class Program
         {
             
             case CloseEventArgs close:
-                Toolkit.Window.Destroy(close.Window);
+                // Toolkit.Window.Destroy(close.Window);
+                IsRunning = false;
                 break;
             
         }
