@@ -18,7 +18,8 @@ public unsafe class Renderer
     private static VkQueue _graphicsQueue;
     private static VkQueue _presentQueue;
 
-    private static VkSwapchainKHR _swapchain;
+    private static VkSwapchainKHR _swapchain = VkSwapchainKHR.Zero;
+    private static VkSurfaceFormatKHR _swapchainSurfaceFormat;
     private static List<VkImage> _swapchainImages = new();
     private static List<VkImageView> _swapchainImageViews = new();
     private static List<VkFramebuffer> _swapchainFramebuffers = new();
@@ -38,11 +39,14 @@ public unsafe class Renderer
     private static List<VkSemaphore> _renderFinishedSemaphores = new();
     private static List<VkFence> _imageAvailableFences = new();
 
+    private static VkSurfaceKHR _surface;
     private static VkExtent2D _swapchainSurfaceExtent;
     private static VkViewport _viewport;
     private static VkRect2D _scissorRect;
 
     private static uint _imageIndex;
+    private static uint? _graphicsFamilyIndex;
+    private static uint? _presentFamilyIndex;
     
     public static WindowHandle Window;
 
@@ -50,6 +54,23 @@ public unsafe class Renderer
     {
 
         Vk.CmdDraw(_commandBuffer, 6, 1, 0, 0);
+
+    }
+
+    public static void SetScissor(int x, int y, uint width, uint height)
+    {
+
+        _scissorRect.offset = new VkOffset2D(x, y);
+        _scissorRect.extent = new VkExtent2D(width, height);
+
+    }
+    public static void SetViewport(float x, float y, float width, float height)
+    {
+
+        _viewport.x = x;
+        _viewport.y = y;
+        _viewport.width = width;
+        _viewport.height = height;
 
     }
 
@@ -67,12 +88,13 @@ public unsafe class Renderer
             Vk.DestroyImageView(_device, imageView, null);
         }
         Vk.DestroySwapchainKHR(_device, _swapchain, null);
-        // Vk.DestroySurfaceKHR(_instance, surface, null);    
+        Vk.DestroySurfaceKHR(_instance, _surface, null);    
         // Vk.DestroyShaderModule(_device, _vertexShaderModule, null);
         // Vk.DestroyShaderModule(_device, _fragmentShaderModule, null);
         Vk.DestroyPipeline(_device, _graphicsPipeline, null);
         Vk.DestroyPipelineLayout(_device, _pipelineLayout, null);
         Vk.DestroyRenderPass(_device, _renderPass, null);
+        fixed (VkCommandBuffer* commandBufferPtr = &_commandBuffer) Vk.FreeCommandBuffers(_device, _commandPool, 1, commandBufferPtr);
         Vk.DestroyCommandPool(_device, _commandPool, null);
         Vk.DestroySemaphore(_device, _imageAvailableSemaphore, null);
         Vk.DestroySemaphore(_device, _renderFinishedSemaphore, null);
@@ -123,7 +145,17 @@ public unsafe class Renderer
     {
         
         fixed (uint* imageIndexPtr = &_imageIndex) _result = Vk.AcquireNextImageKHR(_device, _swapchain, ulong.MaxValue, _imageAvailableSemaphore, VkFence.Zero, imageIndexPtr);
-        if (_result != VkResult.Success) GameLogger.ThrowError($"Failed to acquire next image with message {_result.ToString()}");
+        if (_result != VkResult.Success)
+        {
+            if (_result == VkResult.SuboptimalKhr || _result == VkResult.ErrorOutOfDateKhr)
+            {
+                RecreateSwapchain();
+            }
+            else
+            {
+                GameLogger.ThrowError($"Failed to acquire next image with message {_result.ToString()}");
+            }
+        }
     
         _result = Vk.ResetCommandBuffer(_commandBuffer, 0);
         if (_result != VkResult.Success) GameLogger.ThrowError($"Failed to reset the command buffer with message {_result.ToString()}");
@@ -170,10 +202,185 @@ public unsafe class Renderer
 
     }
 
-    public static void CreateOrRecreateSwapchain()
+    public static void RecreateSwapchain()
     {
         
+        Vk.DeviceWaitIdle(_device);
+        if (_swapchain != VkSwapchainKHR.Zero)
+        {
+            
+            foreach (VkFramebuffer framebuffer in _swapchainFramebuffers)
+            {
+                Vk.DestroyFramebuffer(_device, framebuffer, null);
+            }
+
+            foreach (VkImageView imageView in _swapchainImageViews)
+            {
+                Vk.DestroyImageView(_device, imageView, null);
+            }
+            
+            _swapchainFramebuffers.Clear();
+            _swapchainImageViews.Clear();
+            _swapchainImages.Clear();
+            
+            Vk.DestroySwapchainKHR(_device, _swapchain, null);
+            
+        }
+    
+        // Get details of swapchain support
+        VkSurfaceCapabilitiesKHR swapchainCapabilities = new VkSurfaceCapabilitiesKHR();
+        List<VkSurfaceFormatKHR> swapchainSupportedFormats = new();
+        List<VkPresentModeKHR> swapchainPresentModesSupported = new();
         
+        // Get values pertaining to swapchain support.
+        // Console.WriteLine("hi");
+        Vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(_physicalDevice, _surface, &swapchainCapabilities);
+
+        uint formatCount = 0;
+        Vk.GetPhysicalDeviceSurfaceFormatsKHR(_physicalDevice, _surface, &formatCount, null);
+        if (formatCount != 0)
+        {
+            VkSurfaceFormatKHR* surfaceSupportedFormatsPtr = stackalloc VkSurfaceFormatKHR[(int)formatCount];
+            Vk.GetPhysicalDeviceSurfaceFormatsKHR(_physicalDevice, _surface, &formatCount, surfaceSupportedFormatsPtr);
+            for (int i = 0; i < formatCount; i++)
+            {
+                swapchainSupportedFormats.Add(surfaceSupportedFormatsPtr[i]);
+            }
+        }
+
+        uint presentModeCount = 0;
+        Vk.GetPhysicalDeviceSurfacePresentModesKHR(_physicalDevice, _surface, &presentModeCount, null);
+        if (presentModeCount != 0)
+        {
+            VkPresentModeKHR* surfaceSupportedPresentModesPtr = stackalloc VkPresentModeKHR[(int)presentModeCount];
+            Vk.GetPhysicalDeviceSurfacePresentModesKHR(_physicalDevice, _surface, &presentModeCount, surfaceSupportedPresentModesPtr);
+            for (int i = 0; i < presentModeCount; i++)
+            {
+                swapchainPresentModesSupported.Add(surfaceSupportedPresentModesPtr[i]);
+            }
+        }
+        
+        if (swapchainPresentModesSupported.Count == 0 && swapchainSupportedFormats.Count == 0) GameLogger.ThrowError("Swapchain extensions are not supported.");
+        
+        // Choose necessary swapchain surface formats and capabilities.
+        VkSurfaceFormatKHR swapchainSurfaceFormat = swapchainSupportedFormats[0];
+        foreach (VkSurfaceFormatKHR format in swapchainSupportedFormats)
+        {
+            if (format.format == VkFormat.FormatB8g8r8a8Srgb && format.colorSpace == VkColorSpaceKHR.ColorspaceSrgbNonlinearKhr)
+            {
+                swapchainSurfaceFormat = format;
+                break;
+            }
+        }
+
+        // we can enumerate like we did surface format if we wanted, but PresentModeFifoKhr is always available.
+        VkPresentModeKHR swapchainSurfacePresentMode = VkPresentModeKHR.PresentModeFifoKhr;
+
+        Toolkit.Window.GetFramebufferSize(Window, out Vector2i framebufferSize);
+        _swapchainSurfaceExtent.width = (uint) Math.Clamp(framebufferSize.X, swapchainCapabilities.minImageExtent.width, swapchainCapabilities.maxImageExtent.width);
+        _swapchainSurfaceExtent.height = (uint) Math.Clamp(framebufferSize.Y, swapchainCapabilities.minImageExtent.height, swapchainCapabilities.maxImageExtent.height);
+
+        uint imageCount = swapchainCapabilities.minImageCount + 1;
+        if (swapchainCapabilities.maxImageCount > 0 && imageCount > swapchainCapabilities.maxImageCount) imageCount = swapchainCapabilities.maxImageCount;
+
+        VkSwapchainCreateInfoKHR swapchainCreateInfo = new VkSwapchainCreateInfoKHR();
+        swapchainCreateInfo.sType = VkStructureType.StructureTypeSwapchainCreateInfoKhr;
+        swapchainCreateInfo.surface = _surface;
+        swapchainCreateInfo.minImageCount = imageCount;
+        swapchainCreateInfo.imageFormat = swapchainSurfaceFormat.format;
+        swapchainCreateInfo.imageColorSpace = swapchainSurfaceFormat.colorSpace;
+        swapchainCreateInfo.imageExtent = _swapchainSurfaceExtent;
+        swapchainCreateInfo.imageArrayLayers = 1;
+        swapchainCreateInfo.imageUsage = VkImageUsageFlagBits.ImageUsageColorAttachmentBit;
+        
+        uint* queueFamilyIndices = stackalloc uint[] { _graphicsFamilyIndex.Value, _presentFamilyIndex.Value };
+        if (_graphicsFamilyIndex.Value != _presentFamilyIndex.Value)
+        {
+            swapchainCreateInfo.imageSharingMode = VkSharingMode.SharingModeConcurrent;
+            swapchainCreateInfo.queueFamilyIndexCount = 2;
+            swapchainCreateInfo.pQueueFamilyIndices = queueFamilyIndices;
+        }
+        else
+        {
+            swapchainCreateInfo.imageSharingMode = VkSharingMode.SharingModeExclusive;
+            swapchainCreateInfo.queueFamilyIndexCount = 0;
+            swapchainCreateInfo.pQueueFamilyIndices = null;
+        }
+
+        swapchainCreateInfo.preTransform = swapchainCapabilities.currentTransform;
+        swapchainCreateInfo.compositeAlpha = VkCompositeAlphaFlagBitsKHR.CompositeAlphaOpaqueBitKhr;
+        swapchainCreateInfo.presentMode = swapchainSurfacePresentMode;
+        swapchainCreateInfo.clipped = 1;
+        swapchainCreateInfo.oldSwapchain = VkSwapchainKHR.Zero;
+        
+        fixed (VkSwapchainKHR* swapchainPtr = &_swapchain) _result = Vk.CreateSwapchainKHR(_device, &swapchainCreateInfo, null, swapchainPtr);
+        if (_result != VkResult.Success) GameLogger.ThrowError($"Failed to create swapchain with message {_result.ToString()}");
+        GameLogger.DebugLog("Successfully created the swapchain.");
+        
+        uint swapchainImageCount = 0;
+        Vk.GetSwapchainImagesKHR(_device, _swapchain, &swapchainImageCount, null);
+        VkImage* swapchainImagesPtr = stackalloc VkImage[(int)swapchainImageCount];
+        Vk.GetSwapchainImagesKHR(_device, _swapchain, &swapchainImageCount, swapchainImagesPtr);
+        for (int i = 0; i < swapchainImageCount; i++)
+        {
+            _swapchainImages.Add(swapchainImagesPtr[i]);
+        }
+
+        // Create swapchain image views.
+        VkImageView* swapchainImageViewsPtr = stackalloc VkImageView[_swapchainImages.Count];
+        for (int i = 0; i < _swapchainImages.Count; i++)
+        {
+            
+            VkImageViewCreateInfo imageViewCreateInfo = new VkImageViewCreateInfo();
+            imageViewCreateInfo.sType = VkStructureType.StructureTypeImageViewCreateInfo;
+            imageViewCreateInfo.image = _swapchainImages[i];
+            imageViewCreateInfo.viewType = VkImageViewType.ImageViewType2d;
+            imageViewCreateInfo.format = swapchainSurfaceFormat.format;
+            imageViewCreateInfo.components.r = VkComponentSwizzle.ComponentSwizzleIdentity;
+            imageViewCreateInfo.components.g = VkComponentSwizzle.ComponentSwizzleIdentity;
+            imageViewCreateInfo.components.b = VkComponentSwizzle.ComponentSwizzleIdentity;
+            imageViewCreateInfo.components.a = VkComponentSwizzle.ComponentSwizzleIdentity;
+            imageViewCreateInfo.subresourceRange.aspectMask = VkImageAspectFlagBits.ImageAspectColorBit;
+            imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+            imageViewCreateInfo.subresourceRange.levelCount = 1;
+            imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+            imageViewCreateInfo.subresourceRange.layerCount = 1;
+            
+            _result = Vk.CreateImageView(_device, &imageViewCreateInfo, null, &swapchainImageViewsPtr[i]);    
+            if (_result != VkResult.Success) GameLogger.ThrowError($"Failed to create image view with message {_result.ToString()}");
+            GameLogger.DebugLog($"Successfully created image view.");
+            
+        }
+        
+        for (int i = 0; i < _swapchainImages.Count; i++)
+        {
+            _swapchainImageViews.Add(swapchainImageViewsPtr[i]);
+        }
+        
+        // Create the framebuffers.
+        for (int i = 0; i < _swapchainImageViews.Count; i++)
+        {
+            
+            VkFramebufferCreateInfo framebufferCreateInfo = new VkFramebufferCreateInfo();
+            framebufferCreateInfo.sType = VkStructureType.StructureTypeFramebufferCreateInfo;
+            framebufferCreateInfo.renderPass = _renderPass;
+            framebufferCreateInfo.attachmentCount = 1;
+            VkImageView attachments = _swapchainImageViews[i];
+            framebufferCreateInfo.pAttachments = &attachments;
+            framebufferCreateInfo.width = _swapchainSurfaceExtent.width;
+            framebufferCreateInfo.height = _swapchainSurfaceExtent.height;
+            framebufferCreateInfo.layers = 1;
+
+            VkFramebuffer frameBuffer;
+            _result = Vk.CreateFramebuffer(_device, &framebufferCreateInfo, null, &frameBuffer);
+            if (_result != VkResult.Success) GameLogger.ThrowError($"Failed to create framebuffer with message {_result.ToString()}");
+            _swapchainFramebuffers.Add(frameBuffer);
+            GameLogger.DebugLog("Successfully created framebuffer.");
+            
+        }
+        
+        SetScissor(0, 0, _swapchainSurfaceExtent.width, _swapchainSurfaceExtent.height);
+        SetViewport(0.0f, 0.0f, _swapchainSurfaceExtent.width, _swapchainSurfaceExtent.height);
         
     }
     public static void Init()
@@ -255,7 +462,7 @@ public unsafe class Renderer
         VKLoader.SetInstance(_instance);
         
         // Create the window surface.
-        _result = Toolkit.Vulkan.CreateWindowSurface(_instance, Window, null, out VkSurfaceKHR surface);
+        _result = Toolkit.Vulkan.CreateWindowSurface(_instance, Window, null, out _surface);
         if (_result != VkResult.Success) GameLogger.ThrowError($"Failed to create a window surface with error {_result.ToString()}");
         
         // Create and select a physical device; your GPU.
@@ -302,8 +509,8 @@ public unsafe class Renderer
         }
         
         // Find queue families that are needed.
-        uint? graphicsFamilyIndex = null;
-        uint? presentFamilyIndex = null;
+        // uint? graphicsFamilyIndex = null;
+        // uint? presentFamilyIndex = null;
 
         uint queueFamilyCount = 0;
         Vk.GetPhysicalDeviceQueueFamilyProperties(_physicalDevice, &queueFamilyCount, null);
@@ -313,22 +520,22 @@ public unsafe class Renderer
         {
 
             int presentSupport = 0;
-            Vk.GetPhysicalDeviceSurfaceSupportKHR(_physicalDevice, i, surface, &presentSupport);
-            if (presentSupport == 1) presentFamilyIndex = i;
+            Vk.GetPhysicalDeviceSurfaceSupportKHR(_physicalDevice, i, _surface, &presentSupport);
+            if (presentSupport == 1) _presentFamilyIndex = i;
             
             if (((uint)queueFamilyProperties[i].queueFlags & (uint)VkQueueFlagBits.QueueGraphicsBit) == 1)
             {
-                graphicsFamilyIndex = i;
+                _graphicsFamilyIndex = i;
             }
 
         }
         
-        if (graphicsFamilyIndex == null) GameLogger.ThrowError("No graphics family could be found.");
+        if (_graphicsFamilyIndex == null) GameLogger.ThrowError("No graphics family could be found.");
         
         // Stuff for creating the logical device.
         
         // Determine the amount of queues per queue family.
-        List<uint> uniqueQueueFamilies = [ graphicsFamilyIndex.Value, presentFamilyIndex.Value ];
+        List<uint> uniqueQueueFamilies = [ _graphicsFamilyIndex.Value, _presentFamilyIndex.Value ];
 
         List<VkDeviceQueueCreateInfo> queueCreateInfos = new();
         float queuePriority = 1.0f;
@@ -374,8 +581,8 @@ public unsafe class Renderer
         if (_result != VkResult.Success) GameLogger.ThrowError($"The device couldn't be created with message {_result.ToString()}");
         GameLogger.DebugLog("Created the logical device.");
         
-        fixed (VkQueue* graphicsQueuePtr = &_graphicsQueue) Vk.GetDeviceQueue(_device, graphicsFamilyIndex.Value, 0, graphicsQueuePtr);
-        fixed (VkQueue* presentQueuePtr = &_presentQueue) Vk.GetDeviceQueue(_device, presentFamilyIndex.Value, 0, presentQueuePtr);
+        fixed (VkQueue* graphicsQueuePtr = &_graphicsQueue) Vk.GetDeviceQueue(_device, _graphicsFamilyIndex.Value, 0, graphicsQueuePtr);
+        fixed (VkQueue* presentQueuePtr = &_presentQueue) Vk.GetDeviceQueue(_device, _presentFamilyIndex.Value, 0, presentQueuePtr);
         
         // Get details of swapchain support
         VkSurfaceCapabilitiesKHR swapchainCapabilities = new VkSurfaceCapabilitiesKHR();
@@ -384,14 +591,14 @@ public unsafe class Renderer
         
         // Get values pertaining to swapchain support.
         // Console.WriteLine("hi");
-        Vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(_physicalDevice, surface, &swapchainCapabilities);
+        Vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(_physicalDevice, _surface, &swapchainCapabilities);
 
         uint formatCount = 0;
-        Vk.GetPhysicalDeviceSurfaceFormatsKHR(_physicalDevice, surface, &formatCount, null);
+        Vk.GetPhysicalDeviceSurfaceFormatsKHR(_physicalDevice, _surface, &formatCount, null);
         if (formatCount != 0)
         {
             VkSurfaceFormatKHR* surfaceSupportedFormatsPtr = stackalloc VkSurfaceFormatKHR[(int)formatCount];
-            Vk.GetPhysicalDeviceSurfaceFormatsKHR(_physicalDevice, surface, &formatCount, surfaceSupportedFormatsPtr);
+            Vk.GetPhysicalDeviceSurfaceFormatsKHR(_physicalDevice, _surface, &formatCount, surfaceSupportedFormatsPtr);
             for (int i = 0; i < formatCount; i++)
             {
                 swapchainSupportedFormats.Add(surfaceSupportedFormatsPtr[i]);
@@ -399,11 +606,11 @@ public unsafe class Renderer
         }
 
         uint presentModeCount = 0;
-        Vk.GetPhysicalDeviceSurfacePresentModesKHR(_physicalDevice, surface, &presentModeCount, null);
+        Vk.GetPhysicalDeviceSurfacePresentModesKHR(_physicalDevice, _surface, &presentModeCount, null);
         if (presentModeCount != 0)
         {
             VkPresentModeKHR* surfaceSupportedPresentModesPtr = stackalloc VkPresentModeKHR[(int)presentModeCount];
-            Vk.GetPhysicalDeviceSurfacePresentModesKHR(_physicalDevice, surface, &presentModeCount, surfaceSupportedPresentModesPtr);
+            Vk.GetPhysicalDeviceSurfacePresentModesKHR(_physicalDevice, _surface, &presentModeCount, surfaceSupportedPresentModesPtr);
             for (int i = 0; i < presentModeCount; i++)
             {
                 swapchainPresentModesSupported.Add(surfaceSupportedPresentModesPtr[i]);
@@ -435,7 +642,7 @@ public unsafe class Renderer
 
         VkSwapchainCreateInfoKHR swapchainCreateInfo = new VkSwapchainCreateInfoKHR();
         swapchainCreateInfo.sType = VkStructureType.StructureTypeSwapchainCreateInfoKhr;
-        swapchainCreateInfo.surface = surface;
+        swapchainCreateInfo.surface = _surface;
         swapchainCreateInfo.minImageCount = imageCount;
         swapchainCreateInfo.imageFormat = swapchainSurfaceFormat.format;
         swapchainCreateInfo.imageColorSpace = swapchainSurfaceFormat.colorSpace;
@@ -443,8 +650,8 @@ public unsafe class Renderer
         swapchainCreateInfo.imageArrayLayers = 1;
         swapchainCreateInfo.imageUsage = VkImageUsageFlagBits.ImageUsageColorAttachmentBit;
         
-        uint* queueFamilyIndices = stackalloc uint[] { graphicsFamilyIndex.Value, presentFamilyIndex.Value };
-        if (graphicsFamilyIndex.Value != presentFamilyIndex.Value)
+        uint* queueFamilyIndices = stackalloc uint[] { _graphicsFamilyIndex.Value, _presentFamilyIndex.Value };
+        if (_graphicsFamilyIndex.Value != _presentFamilyIndex.Value)
         {
             swapchainCreateInfo.imageSharingMode = VkSharingMode.SharingModeConcurrent;
             swapchainCreateInfo.queueFamilyIndexCount = 2;
@@ -547,6 +754,28 @@ public unsafe class Renderer
         fixed (VkRenderPass* renderPassPtr = &_renderPass) _result = Vk.CreateRenderPass(_device, &renderPassCreateInfo, null, renderPassPtr);
         if (_result != VkResult.Success) GameLogger.ThrowError($"Failed to create render pass with message {_result.ToString()}");
         GameLogger.DebugLog($"Successfully created render pass.");
+        
+        // Create the framebuffers.
+        for (int i = 0; i < _swapchainImageViews.Count; i++)
+        {
+            
+            VkFramebufferCreateInfo framebufferCreateInfo = new VkFramebufferCreateInfo();
+            framebufferCreateInfo.sType = VkStructureType.StructureTypeFramebufferCreateInfo;
+            framebufferCreateInfo.renderPass = _renderPass;
+            framebufferCreateInfo.attachmentCount = 1;
+            VkImageView attachments = _swapchainImageViews[i];
+            framebufferCreateInfo.pAttachments = &attachments;
+            framebufferCreateInfo.width = _swapchainSurfaceExtent.width;
+            framebufferCreateInfo.height = _swapchainSurfaceExtent.height;
+            framebufferCreateInfo.layers = 1;
+
+            VkFramebuffer frameBuffer;
+            _result = Vk.CreateFramebuffer(_device, &framebufferCreateInfo, null, &frameBuffer);
+            if (_result != VkResult.Success) GameLogger.ThrowError($"Failed to create framebuffer with message {_result.ToString()}");
+            _swapchainFramebuffers.Add(frameBuffer);
+            GameLogger.DebugLog("Successfully created framebuffer.");
+            
+        }
         
         // Create the graphics pipeline.
         byte[] vertShader = File.ReadAllBytes("vert.spv");
@@ -695,6 +924,7 @@ public unsafe class Renderer
         GameLogger.DebugLog("Successfully created graphics pipeline.");
         
         // Create the framebuffers.
+        /*
         for (int i = 0; i < _swapchainImageViews.Count; i++)
         {
             
@@ -715,12 +945,13 @@ public unsafe class Renderer
             GameLogger.DebugLog("Successfully created framebuffer.");
             
         }
+        */
         
         // Create the command pool.
         VkCommandPoolCreateInfo commandPoolCreateInfo = new VkCommandPoolCreateInfo();
         commandPoolCreateInfo.sType = VkStructureType.StructureTypeCommandPoolCreateInfo;
         commandPoolCreateInfo.flags = VkCommandPoolCreateFlagBits.CommandPoolCreateResetCommandBufferBit;
-        commandPoolCreateInfo.queueFamilyIndex = graphicsFamilyIndex.Value;
+        commandPoolCreateInfo.queueFamilyIndex = _graphicsFamilyIndex.Value;
         
         fixed (VkCommandPool* commandPoolPtr = &_commandPool) _result = Vk.CreateCommandPool(_device, &commandPoolCreateInfo, null, commandPoolPtr);
         if (_result != VkResult.Success) GameLogger.ThrowError($"Failed to create the command pool with message {_result.ToString()}");
