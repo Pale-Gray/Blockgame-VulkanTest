@@ -12,9 +12,54 @@ using OpenTK.Platform;
 
 namespace Blockgame_VulkanTests;
 
-class Program
+public struct Vertex
 {
 
+    public Vector2 Position;
+    public Vector3 Color;
+
+    public static VkVertexInputBindingDescription GetVertexBindingDescription()
+    {
+        
+        VkVertexInputBindingDescription vertexBindingDescription = new VkVertexInputBindingDescription();
+
+        vertexBindingDescription.binding = 0;
+        vertexBindingDescription.stride = (uint) Marshal.SizeOf<Vertex>();
+        vertexBindingDescription.inputRate = VkVertexInputRate.VertexInputRateVertex;
+        
+        return vertexBindingDescription;
+
+    }
+
+    public static VkVertexInputAttributeDescription[] GetVertexAttributeDescriptions()
+    {
+        
+        VkVertexInputAttributeDescription[] vertexAttributeDescriptions = new VkVertexInputAttributeDescription[2];
+
+        vertexAttributeDescriptions[0].binding = 0;
+        vertexAttributeDescriptions[0].location = 0;
+        vertexAttributeDescriptions[0].format = VkFormat.FormatR32g32Sfloat;
+        vertexAttributeDescriptions[0].offset = 0;
+        
+        vertexAttributeDescriptions[1].binding = 0;
+        vertexAttributeDescriptions[1].location = 1;
+        vertexAttributeDescriptions[1].format = VkFormat.FormatR32g32b32Sfloat;
+        vertexAttributeDescriptions[1].offset = (uint) Marshal.OffsetOf<Vertex>(nameof(Color));
+        
+        return vertexAttributeDescriptions;
+        
+    } 
+
+}
+class Program
+{
+    public static Vertex[] vertices =
+    {
+        new Vertex() { Position = (0.0f, -0.5f), Color = (1.0f, 0.0f, 0.0f) },
+        new Vertex() { Position = (0.5f, 0.5f), Color = (0.0f, 1.0f, 0.0f)},
+        new Vertex() { Position = (-0.5f, 0.5f), Color = (0.0f, 0.0f, 1.0f)}
+    };
+    
     public static bool IsRunning = true;
     
     static unsafe void Main(string[] args)
@@ -45,6 +90,8 @@ class Program
         EventQueue.EventRaised += EventRaised;
         
         Renderer.Init();
+        VkPipeline currentPipeline = Renderer.CreateGraphicsPipeline("vert.spv", "frag.spv", Vertex.GetVertexBindingDescription(), Vertex.GetVertexAttributeDescriptions());
+        VkBuffer vertexBuffer = Renderer.CreateVertexBuffer(vertices);
         
         GameLogger.DebugLog("Successfully created semaphores.");
         
@@ -55,6 +102,8 @@ class Program
             Renderer.Wait();
             
             Renderer.BeginRenderPass(Color4.Brown);
+            Renderer.BindGraphicsPipeline(currentPipeline);
+            Renderer.BindVertexBuffer(vertexBuffer);
             
             Renderer.Draw();
             
