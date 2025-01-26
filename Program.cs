@@ -103,9 +103,8 @@ class Program
             
             Renderer.BeginRenderPass(Color4.Brown);
             Renderer.BindGraphicsPipeline(currentPipeline);
-            Renderer.BindVertexBuffer(vertexBuffer);
             
-            Renderer.Draw();
+            Renderer.DrawFromVertices(vertexBuffer, vertices);
             
             Renderer.EndRenderPass();
             

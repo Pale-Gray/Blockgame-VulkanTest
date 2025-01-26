@@ -71,6 +71,21 @@ public unsafe class Renderer
         Vk.CmdBindVertexBuffers(_commandBuffer, 0, 1, &buffer, &offsets);
     }
 
+    public static void DrawFromVertices<T>(VkBuffer buffer, T[] vertices)
+    {
+        
+        ulong offsets = 0;
+        Vk.CmdBindVertexBuffers(_commandBuffer, 0, 1, &buffer, &offsets);
+        Vk.CmdDraw(_commandBuffer, (uint)vertices.Length, 1, 0, 0);
+        
+    }
+    public static void Draw()
+    {
+
+        Vk.CmdDraw(_commandBuffer, 6, 1, 0, 0);
+
+    }
+
     public static VkBuffer CreateVertexBuffer<T>(T[] data)
     {
 
@@ -131,70 +146,70 @@ public unsafe class Renderer
 
     public static VkPipeline CreateGraphicsPipeline(string vertexShaderPath, string fragmentShaderPath, VkVertexInputBindingDescription description, VkVertexInputAttributeDescription[] attributes)
     {
-        
+
         // Create the graphics pipeline.
         byte[] vertShader = File.ReadAllBytes(vertexShaderPath);
         byte[] fragShader = File.ReadAllBytes(fragmentShaderPath);
 
         VkPipeline graphicsPipeline = new VkPipeline();
-        
+
         VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = new VkShaderModuleCreateInfo();
         vertexShaderModuleCreateInfo.sType = VkStructureType.StructureTypeShaderModuleCreateInfo;
-        vertexShaderModuleCreateInfo.codeSize = (UIntPtr) vertShader.Length;
+        vertexShaderModuleCreateInfo.codeSize = (UIntPtr)vertShader.Length;
         fixed (byte* vertShaderPtr = vertShader) vertexShaderModuleCreateInfo.pCode = (uint*)vertShaderPtr;
 
         VkShaderModule vertexShaderModule;
         _result = Vk.CreateShaderModule(_device, &vertexShaderModuleCreateInfo, null, &vertexShaderModule);
         if (_result != VkResult.Success) GameLogger.ThrowError($"Failed to create shader module with message {_result.ToString()}");
         _vertexShaderModules.Add(vertexShaderModule);
-        
+
         VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = new VkShaderModuleCreateInfo();
         fragmentShaderModuleCreateInfo.sType = VkStructureType.StructureTypeShaderModuleCreateInfo;
-        fragmentShaderModuleCreateInfo.codeSize = (UIntPtr) fragShader.Length;
+        fragmentShaderModuleCreateInfo.codeSize = (UIntPtr)fragShader.Length;
         fixed (byte* fragShaderPtr = fragShader) fragmentShaderModuleCreateInfo.pCode = (uint*)fragShaderPtr;
-        
+
         VkShaderModule fragmentShaderModule;
         _result = Vk.CreateShaderModule(_device, &fragmentShaderModuleCreateInfo, null, &fragmentShaderModule);
         if (_result != VkResult.Success) GameLogger.ThrowError($"Failed to create shader module with message {_result.ToString()}");
         _fragmentShaderModules.Add(fragmentShaderModule);
-        
+
         VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo = new VkPipelineShaderStageCreateInfo();
         vertexShaderStageCreateInfo.sType = VkStructureType.StructureTypePipelineShaderStageCreateInfo;
         vertexShaderStageCreateInfo.stage = VkShaderStageFlagBits.ShaderStageVertexBit;
         vertexShaderStageCreateInfo.module = vertexShaderModule;
-        vertexShaderStageCreateInfo.pName = (byte*) Marshal.StringToHGlobalAnsi("main");
-        
+        vertexShaderStageCreateInfo.pName = (byte*)Marshal.StringToHGlobalAnsi("main");
+
         VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo = new VkPipelineShaderStageCreateInfo();
         fragmentShaderStageCreateInfo.sType = VkStructureType.StructureTypePipelineShaderStageCreateInfo;
         fragmentShaderStageCreateInfo.stage = VkShaderStageFlagBits.ShaderStageFragmentBit;
         fragmentShaderStageCreateInfo.module = fragmentShaderModule;
-        fragmentShaderStageCreateInfo.pName = (byte*) Marshal.StringToHGlobalAnsi("main");
-        
+        fragmentShaderStageCreateInfo.pName = (byte*)Marshal.StringToHGlobalAnsi("main");
+
         VkPipelineShaderStageCreateInfo* shaderStages = stackalloc VkPipelineShaderStageCreateInfo[] { vertexShaderStageCreateInfo, fragmentShaderStageCreateInfo };
-        
+
         VkDynamicState* dynamicStates = stackalloc VkDynamicState[] { VkDynamicState.DynamicStateViewport, VkDynamicState.DynamicStateScissor };
         VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = new VkPipelineDynamicStateCreateInfo();
         dynamicStateCreateInfo.sType = VkStructureType.StructureTypePipelineDynamicStateCreateInfo;
         dynamicStateCreateInfo.dynamicStateCount = 2;
         dynamicStateCreateInfo.pDynamicStates = dynamicStates;
-        
+
         VkPipelineVertexInputStateCreateInfo vertexInputInfo = new VkPipelineVertexInputStateCreateInfo();
         vertexInputInfo.sType = VkStructureType.StructureTypePipelineVertexInputStateCreateInfo;
         vertexInputInfo.vertexBindingDescriptionCount = 1;
         vertexInputInfo.pVertexBindingDescriptions = &description;
-        vertexInputInfo.vertexAttributeDescriptionCount = (uint) attributes.Length;
+        vertexInputInfo.vertexAttributeDescriptionCount = (uint)attributes.Length;
         fixed (VkVertexInputAttributeDescription* attribs = attributes) vertexInputInfo.pVertexAttributeDescriptions = attribs;
-        
+
         VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = new VkPipelineInputAssemblyStateCreateInfo();
         inputAssemblyInfo.sType = VkStructureType.StructureTypePipelineInputAssemblyStateCreateInfo;
         inputAssemblyInfo.topology = VkPrimitiveTopology.PrimitiveTopologyTriangleList;
         inputAssemblyInfo.primitiveRestartEnable = 0;
-        
+
         VkPipelineViewportStateCreateInfo viewportStateCreateInfo = new VkPipelineViewportStateCreateInfo();
         viewportStateCreateInfo.sType = VkStructureType.StructureTypePipelineViewportStateCreateInfo;
         viewportStateCreateInfo.viewportCount = 1;
         viewportStateCreateInfo.scissorCount = 1;
-        
+
         VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo = new VkPipelineRasterizationStateCreateInfo();
         rasterizationStateCreateInfo.sType = VkStructureType.StructureTypePipelineRasterizationStateCreateInfo;
         rasterizationStateCreateInfo.depthClampEnable = 0;
@@ -206,7 +221,7 @@ public unsafe class Renderer
         rasterizationStateCreateInfo.depthBiasClamp = 0.0f;
         rasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
         rasterizationStateCreateInfo.lineWidth = 1.0f;
-        
+
         VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = new VkPipelineMultisampleStateCreateInfo();
         multisampleStateCreateInfo.sType = VkStructureType.StructureTypePipelineMultisampleStateCreateInfo;
         multisampleStateCreateInfo.sampleShadingEnable = 0;
@@ -215,7 +230,7 @@ public unsafe class Renderer
         multisampleStateCreateInfo.pSampleMask = null;
         multisampleStateCreateInfo.alphaToCoverageEnable = 0;
         multisampleStateCreateInfo.alphaToOneEnable = 0;
-        
+
         VkPipelineColorBlendAttachmentState colorBlendAttachmentState = new VkPipelineColorBlendAttachmentState();
         colorBlendAttachmentState.colorWriteMask = VkColorComponentFlagBits.ColorComponentRBit |
                                                    VkColorComponentFlagBits.ColorComponentGBit |
@@ -228,7 +243,7 @@ public unsafe class Renderer
         colorBlendAttachmentState.srcAlphaBlendFactor = VkBlendFactor.BlendFactorOne;
         colorBlendAttachmentState.dstAlphaBlendFactor = VkBlendFactor.BlendFactorZero;
         colorBlendAttachmentState.alphaBlendOp = VkBlendOp.BlendOpAdd;
-        
+
         VkPipelineColorBlendStateCreateInfo colorblendStateCreateInfo = new VkPipelineColorBlendStateCreateInfo();
         colorblendStateCreateInfo.sType = VkStructureType.StructureTypePipelineColorBlendStateCreateInfo;
         colorblendStateCreateInfo.logicOpEnable = 0;
@@ -239,7 +254,7 @@ public unsafe class Renderer
         colorblendStateCreateInfo.blendConstants[1] = 0.0f;
         colorblendStateCreateInfo.blendConstants[2] = 0.0f;
         colorblendStateCreateInfo.blendConstants[3] = 0.0f;
-        
+
         VkGraphicsPipelineCreateInfo pipelineCreateInfo = new VkGraphicsPipelineCreateInfo();
         pipelineCreateInfo.sType = VkStructureType.StructureTypeGraphicsPipelineCreateInfo;
         pipelineCreateInfo.stageCount = 2;
@@ -255,19 +270,13 @@ public unsafe class Renderer
         pipelineCreateInfo.layout = _pipelineLayout;
         pipelineCreateInfo.renderPass = _renderPass;
         pipelineCreateInfo.subpass = 0;
-        
+
         _result = Vk.CreateGraphicsPipelines(_device, VkPipelineCache.Zero, 1, &pipelineCreateInfo, null, &graphicsPipeline);
         if (_result != VkResult.Success) GameLogger.ThrowError($"Failed to create graphics pipeline with message {_result.ToString()}");
         GameLogger.DebugLog("Successfully created graphics pipeline.");
-        
+
         _graphicsPipelines.Add(graphicsPipeline);
         return graphicsPipeline;
-        
-    }
-    public static void Draw()
-    {
-
-        Vk.CmdDraw(_commandBuffer, 6, 1, 0, 0);
 
     }
 
